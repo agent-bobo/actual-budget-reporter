@@ -5,6 +5,9 @@ import os
 import sys
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from .actual_client import ActualClient
 from .analyzer import FinanceAnalyzer, WeeklyStats
@@ -79,6 +82,10 @@ class BudgetReporter:
         end_str = week_end.strftime("%Y-%m-%d")
 
         print(f"Generating report for: {start_str} ~ {end_str}")
+
+        if not self.actual_url or not self.actual_password:
+            print("❌ Error: ACTUAL_SERVER_URL and ACTUAL_PASSWORD are required")
+            return {}
 
         # 连接 Actual Budget
         client = ActualClient(

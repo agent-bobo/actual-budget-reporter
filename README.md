@@ -140,12 +140,11 @@ MONTHLY_BUDGET={"餐饮":50000,"交通":20000,"购物":30000}
 
 ```bash
 # 本地开发
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# Local Development
+uv sync
 
-# 测试运行
-python -m src.reporter
+# Run locally
+uv run python -m src.reporter
 ```
 
 ## 📁 项目结构
@@ -161,7 +160,8 @@ budget-reporter/
 │   └── reporter.py         # 主程序
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
+├── pyproject.toml
+├── uv.lock
 ├── .env.example
 ├── run-weekly.sh           # Cron 脚本
 └── README.md

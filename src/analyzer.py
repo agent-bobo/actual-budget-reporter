@@ -2,7 +2,7 @@
 财务分析引擎 - 纯规则计算，零 LLM Token 消耗
 """
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 

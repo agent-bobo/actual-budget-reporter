@@ -1,17 +1,23 @@
 FROM python:3.11-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# 安装依赖
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
-# 复制源码
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies
+RUN uv sync --frozen --no-install-project
+
+# Copy source code
 COPY src/ ./src/
 
-# 设置环境变量
+# Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# 入口命令
-CMD ["python", "-m", "src.reporter"]
+# Run the application
+CMD ["uv", "run", "python", "-m", "src.reporter"]

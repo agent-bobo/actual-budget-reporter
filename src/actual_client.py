@@ -1,14 +1,11 @@
-"""
-Actual Budget API Client
-使用 @actual-app/api 类似的思路，通过 Actual 的 API 获取数据
-"""
 import os
 import json
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
+from actual import Actual
+from actual.database import Transactions, Categories, Accounts
 
 @dataclass
 class Transaction:
@@ -31,78 +28,112 @@ class Category:
 
 
 class ActualClient:
-    """连接 Actual Budget Server 的客户端"""
+    """连接 Actual Budget Server 的客户端 (using actualpy)"""
 
     def __init__(self, server_url: str, password: str, budget_id: str):
         self.server_url = server_url.rstrip('/')
         self.password = password
         self.budget_id = budget_id
-        self.token = None
+        # Allow disabling SSL verification for local/self-hosted instances
+        self.verify_ssl = os.getenv("ACTUAL_VERIFY_SSL", "true").lower() == "true"
+        
+        self.actual = Actual(
+            base_url=self.server_url,
+            password=self.password,
+            file=self.budget_id,
+            cert=False if not self.verify_ssl else None
+        )
+        self._session_active = False
 
     def login(self) -> bool:
-        """获取 access token"""
+        """Initialize connection and download budget"""
         try:
-            resp = requests.post(
-                f"{self.server_url}/account/login",
-                json={"password": self.password},
-                timeout=30
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            self.token = data.get("data", {}).get("token")
-            return bool(self.token)
+            self.actual.__enter__()
+            self._session_active = True
+            return True
         except Exception as e:
-            print(f"Login failed: {e}")
+            print(f"Login/Download failed: {e}")
             return False
 
-    def _api_get(self, path: str) -> Dict:
-        """带认证的 GET 请求"""
-        if not self.token:
-            raise RuntimeError("Not logged in")
+    def close(self):
+        if self._session_active:
+            self.actual.__exit__(None, None, None)
+            self._session_active = False
 
-        resp = requests.get(
-            f"{self.server_url}/{path}",
-            headers={"X-Actual-Token": self.token},
-            timeout=30
-        )
-        resp.raise_for_status()
-        return resp.json()
+    def __del__(self):
+        self.close()
 
     def get_transactions(self, start_date: str, end_date: str) -> List[Transaction]:
         """获取指定日期范围的交易"""
-        # Actual API 格式: /transactions?startDate=2024-01-01&endDate=2024-01-31
-        data = self._api_get(
-            f"transactions?startDate={start_date}&endDate={end_date}"
-        )
+        # Convert YYYY-MM-DD string to YYYYMMDD int
+        start_int = int(start_date.replace('-', ''))
+        end_int = int(end_date.replace('-', ''))
+
+        session = self.actual.session
+        
+        # Query transactions
+        db_txns = session.query(Transactions).filter(
+            Transactions.date >= start_int,
+            Transactions.date <= end_int,
+            Transactions.is_parent == 0,
+            Transactions.tombstone == 0
+        ).all()
 
         transactions = []
-        for t in data.get("data", []):
+        for t in db_txns:
+            # Payee might be None for transfers or if deleted
+            payee_name = t.payee.name if t.payee else ""
+            if not payee_name and t.transfer:
+                 # Check if it's a transfer
+                 payee_name = f"Transfer: {t.transfer.account.name}" if t.transfer.account else "Transfer"
+
+            category_name = t.category.name if t.category else ""
+            account_name = t.account.name if t.account else ""
+            
+            # Date conversion int -> str YYYY-MM-DD
+            date_str = str(t.date)
+            date_fmt = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+
             transactions.append(Transaction(
-                id=t.get("id"),
-                date=t.get("date"),
-                amount=t.get("amount", 0),
-                payee=t.get("payee", ""),
-                category=t.get("category", ""),
-                account=t.get("account", ""),
-                notes=t.get("notes"),
-                is_transfer=t.get("isTransfer", False)
+                id=t.id,
+                date=date_fmt,
+                amount=t.amount,
+                payee=payee_name,
+                category=category_name,
+                account=account_name,
+                notes=t.notes,
+                is_transfer=t.transferred_id is not None
             ))
 
         return transactions
 
     def get_categories(self) -> List[Category]:
         """获取所有分类"""
-        data = self._api_get("categories")
+        session = self.actual.session
+        db_cats = session.query(Categories).filter(Categories.tombstone == 0).all()
+        
         categories = []
-        for c in data.get("data", []):
+        for c in db_cats:
+            group_name = c.group.name if c.group else ""
             categories.append(Category(
-                id=c.get("id"),
-                name=c.get("name", ""),
-                group=c.get("group", ""),
-                is_income=c.get("isIncome", False)
+                id=c.id,
+                name=c.name,
+                group=group_name,
+                is_income=c.is_income == 1
             ))
         return categories
 
     def get_accounts(self) -> List[Dict]:
         """获取账户列表"""
-        return self._api_get("accounts").get("data", [])
+        session = self.actual.session
+        db_accts = session.query(Accounts).filter(Accounts.tombstone == 0).all()
+        
+        accounts = []
+        for a in db_accts:
+            accounts.append({
+                "id": a.id,
+                "name": a.name,
+                "offbudget": a.offbudget == 1,
+                "closed": a.closed == 1
+            })
+        return accounts

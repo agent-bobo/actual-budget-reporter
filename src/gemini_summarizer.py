@@ -3,7 +3,8 @@ Gemini Insight Generator - 只处理预聚合后的数据，极低 Token 成本
 """
 import os
 from typing import List, Dict, Any, Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .analyzer import WeeklyStats, Anomaly
 
@@ -16,8 +17,7 @@ class GeminiSummarizer:
         self.model = model
 
         if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.client = genai.GenerativeModel(model)
+            self.client = genai.Client(api_key=self.api_key)
         else:
             self.client = None
 
@@ -29,10 +29,6 @@ class GeminiSummarizer:
     ) -> str:
         """
         生成周报摘要
-
-        输入：统计数据 + 异常列表（几百 tokens）
-        输出：3-5 句话的人话总结
-        成本：约 500-800 tokens/周
         """
         if not self.client:
             return self._fallback_summary(stats, anomalies)
@@ -41,7 +37,10 @@ class GeminiSummarizer:
         prompt = self._build_prompt(stats, anomalies, budget_health)
 
         try:
-            response = self.client.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt
+            )
             return response.text.strip()
         except Exception as e:
             print(f"Gemini error: {e}")
