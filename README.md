@@ -1,6 +1,10 @@
 # Budget Reporter - Actual Budget 智能周报系统
 
+> 🚧 **Work in Progress** - 当前为 MVP 阶段，API 连接部分需要验证
+
 智能财务周报生成器，与 Actual Budget 集成，每周自动分析消费数据并推送到 Discord。
+
+**Repo:** https://github.com/agent-bobo/actual-budget-reporter
 
 ## ✨ 特性
 
