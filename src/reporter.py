@@ -151,6 +151,14 @@ class BudgetReporter:
         """运行完整流程：生成 + 发送"""
         try:
             report = self.generate_weekly_report()
+            
+            # Print summary to console
+            print("\n" + "="*50)
+            print("📝 Weekly Summary")
+            print("="*50)
+            print(report.get("summary", "No summary generated"))
+            print("="*50 + "\n")
+
             success = self.send_report(report)
             if success:
                 print("✅ Weekly report sent successfully")

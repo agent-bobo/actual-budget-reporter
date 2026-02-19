@@ -12,9 +12,9 @@ from .analyzer import WeeklyStats, Anomaly
 class GeminiSummarizer:
     """用 Gemini 生成自然语言摘要，只输入统计数据，不输入原始交易"""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY")
-        self.model = model
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
@@ -52,49 +52,79 @@ class GeminiSummarizer:
         anomalies: List[Anomaly],
         budget_health: Dict[str, Any]
     ) -> str:
-        """构建极简 Prompt"""
+        """构建结构化 Prompt"""
 
         # 金额转换为美元显示
         income = stats.total_income / 100
         expense = stats.total_expense / 100
+        balance = (stats.total_income - stats.total_expense) / 100
         daily_avg = stats.daily_average / 100
 
         # Top 3 支出分类
-        top3_str = "\n".join([
-            f"- {cat}: ${amount/100:.0f}"
-            for cat, amount in stats.top_expenses[:3]
-        ])
+        top3_list = []
+        for i, (cat, amount) in enumerate(stats.top_expenses[:3], 1):
+            top3_list.append(f"{i}. {cat}: ${amount/100:.0f}")
+        top3_str = "\n".join(top3_list)
 
-        # 异常列表
-        anomaly_str = ""
-        if anomalies:
-            anomaly_str = "\n".join([
-                f"- [{a.severity}] {a.description}"
-                for a in anomalies[:5]  # 最多5条
-            ])
-        else:
-            anomaly_str = "无异常"
+        # 异常/大额交易提醒
+        attention_list = []
+        # 添加大额交易
+        for txn in stats.large_transactions[:3]: # limit to 3
+            attention_list.append(f"• {txn['date'][5:]}有一笔${txn['amount']:.0f}的{txn['category']}支出 ({txn['payee']})")
+        
+        # 添加高优先级异常
+        for a in anomalies:
+            if a.severity == "high":
+                attention_list.append(f"• {a.description}")
+        
+        attention_str = "\n".join(attention_list) if attention_list else "无特别关注事项"
 
         # 预算健康
-        budget_str = budget_health.get("message", "预算数据不可用")
+        budget_status = budget_health.get("message", "预算数据不可用")
 
-        prompt = f"""你是一个财务顾问，用简短、友善的语气写周报摘要。
+        prompt = f"""你是一个专业的财务助手。请根据以下数据，完全按照指定的 Markdown 格式生成周报。不要添加任何开场白或结束语。
 
-本周数据 ({stats.week_start} ~ {stats.week_end}):
-- 收入: ${income:.0f}
-- 支出: ${expense:.0f} (日均 ${daily_avg:.0f})
-- 结余: ${(income - expense):.0f}
+数据:
+日期范围: {stats.week_start} ~ {stats.week_end}
+收入: ${income:.0f}
+支出: ${expense:.0f}
+日均支出: ${daily_avg:.0f}
+结余: ${balance:.0f}
 
-支出Top3:
+Top3支出:
 {top3_str}
 
-异常提醒:
-{anomaly_str}
+预算状态: {budget_status}
 
-预算状态: {budget_str}
+异常/关注事项:
+{attention_str}
 
-用3-5句话总结本周财务状况，给一条实用建议。语气轻松，像朋友聊天。"""
+要求:
+1. "本周洞察"部分：请根据收支数据和预算状态，写一段简短的分析（3-5句话）。计算支出占收入的比例。语气专业但亲切。
+2. 保持格式整洁，使用emoji。
+3. 如果结余为负，请在洞察中委婉提醒。
 
+输出格式模板:
+# 📊 本周财务简报
+**{stats.week_start} ~ {stats.week_end}**
+
+## 💰 收支概览
+• 收入: **${income:.0f}**
+• 支出: **${expense:.0f}** (日均 ${daily_avg:.0f})
+• 结余: **${balance:.0f}**
+
+## 📈 支出Top3
+{top3_str}
+
+## ✅ 预算状态
+{budget_status}
+
+## 💡 本周洞察
+[在此处生成分析]
+
+## 🚨 需要关注
+{attention_str}
+"""
         return prompt
 
     def _fallback_summary(
