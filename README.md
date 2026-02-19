@@ -1,25 +1,25 @@
 # Budget Reporter - Actual Budget 智能周报系统
 
-> 🚧 **Work in Progress** - 当前为 MVP 阶段，API 连接部分需要验证
-
 智能财务周报生成器，与 Actual Budget 集成，每周自动分析消费数据并推送到 Discord。
 
 **Repo:** https://github.com/agent-bobo/actual-budget-reporter
 
 ## ✨ 特性
 
-- 📊 **零 Token 浪费** - 纯规则引擎计算指标，仅 Insight 使用 Gemini
+- 📊 **高效数据获取** - 使用 `actualpy` 直接与 Actual Server 通信，无需打开客户端
 - 🔔 **自动推送** - 每周日自动发送报告到 Discord
 - 🔍 **异常检测** - 自动标记支出激增、大额消费、未分类交易
+- 🧹 **智能过滤** - 自动识别并过滤内部转账，防止数据失真
 - 💰 **预算追踪** - 对比月度预算，预警超支风险
-- 🧠 **智能摘要** - Gemini 生成自然语言财务洞察
+- 🧠 **智能摘要** - Gemini 生成自然语言财务洞察 (基于 Top 30 交易深度分析)
+- 📝 **结构化周报** - 清晰的 Markdown 格式，包含收支概览、Top 支出、预算状态等
 
 ## 🏗️ 架构
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌───────────────┐
 │  Actual Budget  │────▶│  Budget Reporter │────▶│   Discord     │
-│   (你的账本)     │     │  ├─ Actual API   │     │  (手机通知)   │
+│   (你的账本)     │     │  ├─ actualpy     │     │  (手机通知)   │
 │                 │     │  ├─ 规则引擎      │     │               │
 │                 │     │  ├─ Gemini摘要   │     │               │
 └─────────────────┘     └──────────────────┘     └───────────────┘
@@ -30,7 +30,7 @@
 | 方案 | 每周 Token 消耗 | 月成本 (Gemini Flash) |
 |------|-----------------|----------------------|
 | 每笔交易走 LLM (actual-ai 模式) | ~50,000 | ~$0.10 |
-| **本方案 (预聚合+摘要)** | **~500** | **~$0.001** |
+| **本方案 (预聚合+摘要)** | **~2,000** | **~$0.002** |
 
 ## 🚀 快速开始
 
@@ -96,18 +96,17 @@ docker-compose run --rm budget-reporter
 
 | 变量 | 必需 | 说明 |
 |------|------|------|
+| `ACTUAL_SERVER_URL`| ✅ | Actual Server 地址 (e.g. http://localhost:5006) |
 | `ACTUAL_PASSWORD` | ✅ | Actual Budget 登录密码 |
 | `ACTUAL_BUDGET_ID` | ✅ | Budget Sync ID (设置里找) |
 | `DISCORD_WEBHOOK_URL` | ✅ | Discord Webhook URL |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | ❌ | Gemini API Key |
-| `MONTHLY_BUDGET` | ❌ | 月度预算，JSON格式(单位:分) |
+| `GEMINI_API_KEY` | ❌ | Gemini API Key |
+| `GEMINI_MODEL` | ❌ | Gemini 模型 (默认: gemini-2.0-flash) |
+| `ACTUAL_VERIFY_SSL`| ❌ | 是否验证 SSL (默认: true, 自签证书设为 false) |
 
-### 月度预算配置示例
+### 月度预算配置示例 (可选)
 
-```bash
-MONTHLY_BUDGET={"餐饮":50000,"交通":20000,"购物":30000}
-# 表示: 餐饮$500/月, 交通$200/月, 购物$300/月
-```
+在 `src/analyzer.py` 或未来的配置文件中设置。
 
 ## 📊 报告示例
 
@@ -120,10 +119,12 @@ MONTHLY_BUDGET={"餐饮":50000,"交通":20000,"购物":30000}
 • 支出: **$1,200** (日均 $171)
 • 结余: **$2,300**
 
-## 📈 支出Top3
+## 📈 支出Top5
 1. 餐饮: $450
 2. 交通: $200
 3. 购物: $150
+4. 娱乐: $100
+5. 订阅: $50
 
 ## ✅ 预算状态
 预算进度正常
@@ -133,7 +134,8 @@ MONTHLY_BUDGET={"餐饮":50000,"交通":20000,"购物":30000}
 预算节奏，月底预计结余$2000+，可以考虑增加储蓄目标。
 
 ## 🚨 需要关注
-• 周三有一笔$299的电子产品支出
+• 01-16有一笔$299的电子产品支出 (Best Buy)
+• 本周支出环比增长 20%
 ```
 
 ## 🛠️ 开发
@@ -153,7 +155,7 @@ uv run python -m src.reporter
 budget-reporter/
 ├── src/
 │   ├── __init__.py
-│   ├── actual_client.py    # Actual Budget API 客户端
+│   ├── actual_client.py    # actualpy 客户端封装
 │   ├── analyzer.py         # 财务分析引擎 (纯规则)
 │   ├── gemini_summarizer.py # Gemini 摘要生成
 │   ├── discord_notifier.py # Discord 推送
@@ -169,9 +171,8 @@ budget-reporter/
 
 ## 🔒 隐私说明
 
-- 原始交易数据**不会**发送到 LLM
-- 仅发送预聚合的统计指标 (总额、分类占比等)
-- Gemini 仅用于生成 3-5 句话的摘要
+- 原始交易数据**不会**发送到 LLM（除非开启摘要功能，此时仅发送脱敏后的交易摘要）
+- Gemini 仅接收预聚合的统计指标和 Top 30 交易概览
 - 所有数据在本地处理，不存储到任何第三方
 
 ## 📝 路线图
@@ -180,10 +181,11 @@ budget-reporter/
 - [x] 异常检测 (环比/大额/未分类)
 - [x] Discord 推送
 - [x] Gemini 智能摘要
+- [x] 迁移至 actualpy
+- [x] 智能转账过滤
 - [ ] 预算健康度追踪
 - [ ] 月度趋势报告
 - [ ] 异常实时提醒 (另一个 cron job)
-- [ ] 自然语言查询接口 (未来的方向)
 
 ## License
 

@@ -60,16 +60,16 @@ class GeminiSummarizer:
         balance = (stats.total_income - stats.total_expense) / 100
         daily_avg = stats.daily_average / 100
 
-        # Top 3 支出分类
-        top3_list = []
-        for i, (cat, amount) in enumerate(stats.top_expenses[:3], 1):
-            top3_list.append(f"{i}. {cat}: ${amount/100:.0f}")
-        top3_str = "\n".join(top3_list)
+        # Top 5 支出分类
+        top5_list = []
+        for i, (cat, amount) in enumerate(stats.top_expenses[:5], 1):
+            top5_list.append(f"{i}. {cat}: ${amount/100:.0f}")
+        top5_str = "\n".join(top5_list)
 
         # 异常/大额交易提醒
         attention_list = []
         # 添加大额交易
-        for txn in stats.large_transactions[:3]: # limit to 3
+        for txn in stats.large_transactions[:5]: # limit to 5
             attention_list.append(f"• {txn['date'][5:]}有一笔${txn['amount']:.0f}的{txn['category']}支出 ({txn['payee']})")
         
         # 添加高优先级异常
@@ -82,6 +82,19 @@ class GeminiSummarizer:
         # 预算健康
         budget_status = budget_health.get("message", "预算数据不可用")
 
+        # 准备交易详情 (Top 30 by amount)
+        # Sort by absolute amount descending
+        sorted_txns = sorted(
+            stats.simplified_transactions,
+            key=lambda x: abs(x['amount']),
+            reverse=True
+        )[:30]
+
+        txn_list_str = "\n".join([
+            f"- {t['date']} {t['payee']}: ${t['amount']:.2f} ({t['category']}) {t.get('notes') or ''}"
+            for t in sorted_txns
+        ])
+
         prompt = f"""你是一个专业的财务助手。请根据以下数据，完全按照指定的 Markdown 格式生成周报。不要添加任何开场白或结束语。
 
 数据:
@@ -91,18 +104,22 @@ class GeminiSummarizer:
 日均支出: ${daily_avg:.0f}
 结余: ${balance:.0f}
 
-Top3支出:
-{top3_str}
+Top5支出:
+{top5_str}
 
 预算状态: {budget_status}
 
 异常/关注事项:
 {attention_str}
 
+本周交易详情 (按金额排序, Top 30):
+{txn_list_str}
+
 要求:
-1. "本周洞察"部分：请根据收支数据和预算状态，写一段简短的分析（3-5句话）。计算支出占收入的比例。语气专业但亲切。
+1. "本周洞察"部分：请根据收支数据、预算状态和交易详情，写一段简短的分析（3-5句话）。计算支出占收入的比例。语气专业但亲切。
 2. 保持格式整洁，使用emoji。
 3. 如果结余为负，请在洞察中委婉提醒。
+4. 参考“交易详情”来提供更具体的分析，例如具体是哪笔交易导致了支出过高。
 
 输出格式模板:
 # 📊 本周财务简报
@@ -113,8 +130,8 @@ Top3支出:
 • 支出: **${expense:.0f}** (日均 ${daily_avg:.0f})
 • 结余: **${balance:.0f}**
 
-## 📈 支出Top3
-{top3_str}
+## 📈 支出Top5
+{top5_str}
 
 ## ✅ 预算状态
 {budget_status}

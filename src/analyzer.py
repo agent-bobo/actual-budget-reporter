@@ -21,6 +21,7 @@ class WeeklyStats:
     top_expenses: List[Tuple[str, int]]  # [(category, amount), ...]
     uncategorized_count: int
     large_transactions: List[Dict]  # > $100 的交易
+    simplified_transactions: List[Dict] # 简化的交易列表，用于 AI 分析
     daily_average: int
 
 
@@ -47,8 +48,28 @@ class FinanceAnalyzer:
 
     def calculate_weekly_stats(self) -> WeeklyStats:
         """计算本周统计"""
-        # 过滤掉转账（通常是内部账户转移，不是真实收支）
-        valid_txns = [t for t in self.transactions if not t.is_transfer]
+        # 1. 过滤掉系统转账 (is_transfer=True)
+        # 2. 过滤掉未分类但包含 "Transfer" 关键字的交易
+        # 3. 过滤掉 Category 为 None 或者 "Transfer" 的交易
+        
+        valid_txns = []
+        for t in self.transactions:
+            if t.is_transfer:
+                continue
+            
+            # Check for manual transfers
+            payee_lower = (t.payee or "").lower()
+            category_lower = (t.category or "").lower()
+            notes_lower = (t.notes or "").lower()
+            
+            # Keywords often used in transfers
+            if "transfer" in payee_lower or "transfer" in category_lower:
+                continue
+            
+            # If notes mention "transfer" and amount is large round number, might still be transfer?
+            # Let's be conservative and just check Payee/Category for now.
+
+            valid_txns.append(t)
 
         if not valid_txns:
             # 没有交易，返回空统计
@@ -62,6 +83,7 @@ class FinanceAnalyzer:
                 top_expenses=[],
                 uncategorized_count=0,
                 large_transactions=[],
+                simplified_transactions=[],
                 daily_average=0
             )
 
@@ -78,6 +100,9 @@ class FinanceAnalyzer:
         # 分类统计
         category_totals = defaultdict(int)
         uncategorized_count = 0
+        
+        # 准备交易列表给 AI
+        simplified_transactions = []
 
         for t in valid_txns:
             if t.amount < 0:  # 只统计支出
@@ -87,6 +112,15 @@ class FinanceAnalyzer:
                 else:
                     cat_name = t.category
                 category_totals[cat_name] += abs(t.amount)
+            
+            # 添加到简化列表
+            simplified_transactions.append({
+                "date": t.date,
+                "payee": t.payee,
+                "amount": t.amount / 100, # 转换为美元
+                "category": t.category or "未分类",
+                "notes": t.notes
+            })
 
         # Top 支出分类
         sorted_categories = sorted(
@@ -122,6 +156,7 @@ class FinanceAnalyzer:
             top_expenses=top_expenses,
             uncategorized_count=uncategorized_count,
             large_transactions=large_transactions,
+            simplified_transactions=simplified_transactions,
             daily_average=daily_average
         )
 

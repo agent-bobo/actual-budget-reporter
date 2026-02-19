@@ -50,14 +50,20 @@ class DiscordNotifier:
         budget_health: dict
     ) -> bool:
         """格式化并发送周报"""
+        
+        # 如果有 AI 摘要，直接使用 AI 摘要（它已经包含了所有必要信息）
+        if summary:
+            return self.send_report(summary)
 
+        # 降级方案：如果没有 AI 摘要，使用旧的拼接逻辑
+        
         # 金额格式化
         def fmt_cents(cents: int) -> str:
             return f"${cents/100:.0f}"
 
         # 构建 Discord 消息
         lines = [
-            "# 📊 本周财务简报",
+            "# 📊 本周财务简报 (Fallback)",
             f"**{stats.week_start} ~ {stats.week_end}**\n",
             "## 💰 收支概览",
             f"• 收入: **{fmt_cents(stats.total_income)}**",
@@ -65,10 +71,10 @@ class DiscordNotifier:
             f"• 结余: **{fmt_cents(stats.net_change)}**\n",
         ]
 
-        # Top 3 支出
+        # Top 5 支出
         if stats.top_expenses:
-            lines.append("## 📈 支出Top3")
-            for i, (cat, amount) in enumerate(stats.top_expenses[:3], 1):
+            lines.append("## 📈 支出Top5")
+            for i, (cat, amount) in enumerate(stats.top_expenses[:5], 1):
                 lines.append(f"{i}. {cat}: {fmt_cents(amount)}")
             lines.append("")
 
@@ -79,24 +85,12 @@ class DiscordNotifier:
             lines.append(f"## {status_emoji} 预算状态")
             lines.append(f"{budget_health.get('message', 'N/A')}\n")
 
-        # AI 摘要
-        if summary:
-            lines.append("## 💡 本周洞察")
-            lines.append(f"> {summary}\n")
-
         # 异常提醒
         high_anomalies = [a for a in anomalies if a.severity == "high"]
         if high_anomalies:
             lines.append("## 🚨 需要关注")
-            for a in high_anomalies[:3]:
+            for a in high_anomalies[:5]:
                 lines.append(f"• {a.description}")
-            lines.append("")
-
-        # 大额交易
-        if stats.large_transactions:
-            lines.append("## 💸 大额支出")
-            for t in stats.large_transactions[:3]:
-                lines.append(f"• {t['date']} {t['payee']}: ${t['amount']:.0f}")
             lines.append("")
 
         content = "\n".join(lines)
