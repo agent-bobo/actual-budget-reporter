@@ -1,0 +1,4 @@
+# Budget Reporter 依赖
+requests>=2.31.0
+google-generativeai>=0.8.0
+python-dateutil>=2.8.0
