@@ -19,7 +19,8 @@ class WeeklyStats:
     net_change: int  # cents
     category_breakdown: Dict[str, int]  # category -> cents
     top_expenses: List[Tuple[str, int]]  # [(category, amount), ...]
-    top_transactions: List[Dict]  # Top N transactions by amount
+    top_transactions: List[Dict]  # Top N transactions by amount (Expenses)
+    top_income_transactions: List[Dict]  # Top N income transactions
     uncategorized_count: int
     large_transactions: List[Dict]  # > $100 的交易
     simplified_transactions: List[Dict] # 简化的交易列表，用于 AI 分析
@@ -83,6 +84,7 @@ class FinanceAnalyzer:
                 category_breakdown={},
                 top_expenses=[],
                 top_transactions=[],
+                top_income_transactions=[],
                 uncategorized_count=0,
                 large_transactions=[],
                 simplified_transactions=[],
@@ -148,9 +150,24 @@ class FinanceAnalyzer:
         days_count = (max(dates) - min(dates)).days + 1
         daily_average = total_expense // max(days_count, 1)
 
-        # Top 5 Transactions
-        top_transactions = sorted(
-            simplified_transactions,
+        # Top Transactions (All expenses > $20, or at least Top 5)
+        all_expenses = sorted(
+            [t for t in simplified_transactions if t['amount'] < 0],
+            key=lambda x: abs(x['amount']),
+            reverse=True
+        )
+        
+        # Filter > $20 (2000 cents is $20, but amount is already in dollars/float in simplified_transactions? 
+        # Wait, simplified_transactions has 'amount' as float (dollars).
+        # So check abs(amount) > 20.
+        top_transactions = [t for t in all_expenses if abs(t['amount']) > 20]
+        
+        if len(top_transactions) < 5:
+            top_transactions = all_expenses[:5]
+
+        # Top 5 Income Transactions
+        top_income_transactions = sorted(
+            [t for t in simplified_transactions if t['amount'] > 0],
             key=lambda x: abs(x['amount']),
             reverse=True
         )[:5]
@@ -163,7 +180,9 @@ class FinanceAnalyzer:
             net_change=net_change,
             category_breakdown=dict(category_totals),
             top_expenses=top_expenses,
+
             top_transactions=top_transactions,
+            top_income_transactions=top_income_transactions,
             uncategorized_count=uncategorized_count,
             large_transactions=large_transactions,
             simplified_transactions=simplified_transactions,

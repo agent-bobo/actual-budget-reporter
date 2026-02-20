@@ -119,12 +119,16 @@ docker-compose run --rm budget-reporter
 • 支出: **$1,200** (日均 $171)
 • 结余: **$2,300**
 
-## 📈 支出Top5
+## 📈 主要支出 (Top Expenses)
 1. DoorDash: $45 (Food)
 2. Uber: $35 (Transport)
 3. Amazon: $150 (Shopping)
 4. Netflix: $20 (Bills)
 5. Starbucks: $15 (Food)
+
+## 📥 收入Top5
+1. Salary: $5000 (Income)
+2. Interest: $50 (Financial)
 
 ## ✅ 预算状态
 预算进度正常

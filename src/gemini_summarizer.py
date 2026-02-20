@@ -62,12 +62,19 @@ class GeminiSummarizer:
         balance = (stats.total_income - stats.total_expense) / 100
         daily_avg = stats.daily_average / 100
 
-        # Top 5 支出交易
-        top5_list = []
-        for i, txn in enumerate(stats.top_transactions[:5], 1):
-            amount = txn['amount'] # already in dollars from analyzer
-            top5_list.append(f"{i}. {txn['payee']}: ${amount:.0f} ({txn['category']})")
-        top5_str = "\n".join(top5_list)
+        # 主要支出交易 (Expenses > $20 or Top 5)
+        top_expenses_list = []
+        for i, txn in enumerate(stats.top_transactions, 1):
+            amount = txn['amount']
+            top_expenses_list.append(f"{i}. {txn['payee']}: ${amount:.0f} ({txn['category']})")
+        top_expenses_str = "\n".join(top_expenses_list)
+
+        # Top 5 收入交易
+        top_income_list = []
+        for i, txn in enumerate(stats.top_income_transactions[:5], 1):
+            amount = txn['amount']
+            top_income_list.append(f"{i}. {txn['payee']}: ${amount:.0f} ({txn['category']})")
+        top_income_str = "\n".join(top_income_list) if top_income_list else "无收入记录"
 
         # 异常/大额交易提醒
         attention_list = []
@@ -108,7 +115,10 @@ class GeminiSummarizer:
 结余: ${balance:.0f}
 
 Top5支出:
-{top5_str}
+{top_expenses_str}
+
+Top5收入:
+{top_income_str}
 
 预算状态: {budget_status}
 
@@ -133,8 +143,11 @@ Top5支出:
 • 支出: **${expense:.0f}** (日均 ${daily_avg:.0f})
 • 结余: **${balance:.0f}**
 
-## 📈 支出Top5
-{top5_str}
+## 📈 主要支出 (Top Expenses)
+{top_expenses_str}
+
+## 📥 收入Top5
+{top_income_str}
 
 ## ✅ 预算状态
 {budget_status}
