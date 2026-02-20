@@ -18,7 +18,9 @@ class GeminiSummarizer:
 
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
+            print(f"✨ Gemini initialized with model: {self.model}")
         else:
+            print("⚠️ Gemini API key not found, using fallback summary")
             self.client = None
 
     def generate_weekly_summary(
