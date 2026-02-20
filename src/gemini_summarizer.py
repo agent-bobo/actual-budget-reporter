@@ -62,10 +62,11 @@ class GeminiSummarizer:
         balance = (stats.total_income - stats.total_expense) / 100
         daily_avg = stats.daily_average / 100
 
-        # Top 5 支出分类
+        # Top 5 支出交易
         top5_list = []
-        for i, (cat, amount) in enumerate(stats.top_expenses[:5], 1):
-            top5_list.append(f"{i}. {cat}: ${amount/100:.0f}")
+        for i, txn in enumerate(stats.top_transactions[:5], 1):
+            amount = txn['amount'] # already in dollars from analyzer
+            top5_list.append(f"{i}. {txn['payee']}: ${amount:.0f} ({txn['category']})")
         top5_str = "\n".join(top5_list)
 
         # 异常/大额交易提醒

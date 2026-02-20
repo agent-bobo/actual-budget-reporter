@@ -19,6 +19,7 @@ class WeeklyStats:
     net_change: int  # cents
     category_breakdown: Dict[str, int]  # category -> cents
     top_expenses: List[Tuple[str, int]]  # [(category, amount), ...]
+    top_transactions: List[Dict]  # Top N transactions by amount
     uncategorized_count: int
     large_transactions: List[Dict]  # > $100 的交易
     simplified_transactions: List[Dict] # 简化的交易列表，用于 AI 分析
@@ -81,6 +82,7 @@ class FinanceAnalyzer:
                 net_change=0,
                 category_breakdown={},
                 top_expenses=[],
+                top_transactions=[],
                 uncategorized_count=0,
                 large_transactions=[],
                 simplified_transactions=[],
@@ -146,6 +148,13 @@ class FinanceAnalyzer:
         days_count = (max(dates) - min(dates)).days + 1
         daily_average = total_expense // max(days_count, 1)
 
+        # Top 5 Transactions
+        top_transactions = sorted(
+            simplified_transactions,
+            key=lambda x: abs(x['amount']),
+            reverse=True
+        )[:5]
+
         return WeeklyStats(
             week_start=week_start,
             week_end=week_end,
@@ -154,6 +163,7 @@ class FinanceAnalyzer:
             net_change=net_change,
             category_breakdown=dict(category_totals),
             top_expenses=top_expenses,
+            top_transactions=top_transactions,
             uncategorized_count=uncategorized_count,
             large_transactions=large_transactions,
             simplified_transactions=simplified_transactions,
