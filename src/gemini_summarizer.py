@@ -13,7 +13,7 @@ class GeminiSummarizer:
     """用 Gemini 生成自然语言摘要，只输入统计数据，不输入原始交易"""
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model = model or os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
         if self.api_key:
