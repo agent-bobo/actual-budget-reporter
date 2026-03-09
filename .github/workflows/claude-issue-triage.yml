@@ -1,0 +1,41 @@
+name: Claude Issue Triage
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # Daily at 9am UTC
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage open issues
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are a homelab infrastructure assistant monitoring the soenlit/homelab-infra GitHub repository.
+
+            Check for open issues using `gh issue list --repo soenlit/homelab-infra --state open`.
+
+            For each open issue:
+            1. Read the issue details
+            2. If it has no comments yet, post a triage comment that includes:
+               - A brief analysis of the problem
+               - Concrete next steps or a proposed fix
+               - Any relevant files in the repo that would need to change
+            3. If the issue already has comments, skip it (already triaged)
+
+            Keep comments concise and actionable. Reference specific file paths where relevant.
+            Use `gh issue comment <number> --repo soenlit/homelab-infra --body "..."` to post.
