@@ -1,0 +1,48 @@
+name: Claude Issue Worker
+
+on:
+  schedule:
+    - cron: '0 10 * * *' # Daily at 10am UTC (after triage at 9am)
+  workflow_dispatch:
+
+jobs:
+  work-on-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Work on labelled issues
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are an autonomous software engineer. Your job is to resolve GitHub issues in this repository.
+
+            1. Find issues to work on:
+               gh issue list --label "claude" --state open --json number,title,body,labels
+
+            2. For each issue WITHOUT a "claude-working" label:
+               a. Add the "claude-working" label: gh issue edit <number> --add-label "claude-working"
+               b. Read the full issue: gh issue view <number>
+               c. Explore the codebase to understand the context
+               d. Implement the fix (edit files, create files as needed)
+               e. Create a branch and open a PR:
+                  git checkout -b fix/issue-<number>
+                  git add -A
+                  git commit -m "fix: <short description> (closes #<number>)"
+                  git push origin fix/issue-<number>
+                  gh pr create --title "fix: <description>" --body "Closes #<number>\n\n<summary of changes>"
+               f. If you cannot implement a fix, remove "claude-working" and comment explaining why
+
+            3. Skip issues that already have "claude-working" label (already in progress).
+
+            Be conservative: only make changes directly related to the issue. Do not refactor unrelated code.
